@@ -15,6 +15,14 @@ function prompt(question) {
 
 async function main() {
 
+// 0. Check GH_TOKEN
+if (!process.env.GH_TOKEN) {
+  console.error('GH_TOKEN 환경변수가 설정되지 않았습니다.');
+  console.error('GitHub Personal Access Token을 설정해주세요:');
+  console.error('  set GH_TOKEN=your_token_here');
+  process.exit(1);
+}
+
 // 1. Collect changelog messages
 const messages = [];
 console.log('변경 내용을 입력하세요 (빈 줄 입력 시 완료):');
@@ -66,11 +74,19 @@ fs.writeFileSync(changelogPath, changelog, 'utf8');
 console.log(`\nVersion bumped: ${major}.${minor}.${patch} -> ${newVersion}`);
 console.log(`CHANGELOG.md updated`);
 
-// 4. Run electron-builder
-console.log('\nBuilding...\n');
-execSync('npx electron-builder --win', { cwd: root, stdio: 'inherit' });
+// 5. Git commit & tag
+console.log('\nCommitting version bump...');
+execSync('git add -A', { cwd: root, stdio: 'inherit' });
+execSync(`git commit -m "v${newVersion}"`, { cwd: root, stdio: 'inherit' });
+execSync(`git tag v${newVersion}`, { cwd: root, stdio: 'inherit' });
+execSync('git push && git push --tags', { cwd: root, stdio: 'inherit' });
+console.log(`Tag v${newVersion} pushed to GitHub`);
 
-// 5. Copy installer to shared drive
+// 6. Run electron-builder + publish to GitHub Releases
+console.log('\nBuilding & publishing to GitHub Releases...\n');
+execSync('npx electron-builder --win --publish always', { cwd: root, stdio: 'inherit' });
+
+// 7. Copy installer to shared drive
 const copyDest = String.raw`Y:\IT영업_물류팀(KKA0116A0)\006.운영문서\최원영\HiveCode`;
 const distDir = path.join(root, 'dist');
 
@@ -87,6 +103,8 @@ try {
 } catch (e) {
   console.error(`\nFailed to copy to shared drive: ${e.message}`);
 }
+
+console.log(`\n=== v${newVersion} 빌드 & GitHub Release 완료 ===`);
 
 } // end main
 main();
