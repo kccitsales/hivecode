@@ -15,11 +15,22 @@ function prompt(question) {
 
 async function main() {
 
-// 0. Check GH_TOKEN
+// 0. Check GH_TOKEN (환경변수 → .env.json 순서로 확인)
 if (!process.env.GH_TOKEN) {
-  console.error('GH_TOKEN 환경변수가 설정되지 않았습니다.');
-  console.error('GitHub Personal Access Token을 설정해주세요:');
-  console.error('  set GH_TOKEN=your_token_here');
+  const envJsonPath = path.join(root, '.env.json');
+  if (fs.existsSync(envJsonPath)) {
+    const envJson = JSON.parse(fs.readFileSync(envJsonPath, 'utf8'));
+    if (envJson.GH_TOKEN) {
+      process.env.GH_TOKEN = envJson.GH_TOKEN;
+      console.log('GH_TOKEN loaded from .env.json');
+    }
+  }
+}
+if (!process.env.GH_TOKEN) {
+  console.error('GH_TOKEN을 찾을 수 없습니다.');
+  console.error('다음 중 하나로 설정해주세요:');
+  console.error('  1. .env.json 파일: { "GH_TOKEN": "your_token" }');
+  console.error('  2. 환경변수: set GH_TOKEN=your_token');
   process.exit(1);
 }
 
