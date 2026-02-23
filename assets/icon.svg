@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
+    </linearGradient>
+    <linearGradient id="cell" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#fbbf24"/>
+      <stop offset="100%" style="stop-color:#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <!-- Background rounded square -->
+  <rect x="16" y="16" width="480" height="480" rx="96" fill="url(#bg)"/>
+  <!-- Honeycomb cells -->
+  <!-- Center cell -->
+  <polygon points="256,148 306,177 306,235 256,264 206,235 206,177" fill="url(#cell)" stroke="#92400e" stroke-width="4" opacity="0.9"/>
+  <!-- Top-right cell -->
+  <polygon points="316,108 366,137 366,195 316,224 266,195 266,137" fill="url(#cell)" stroke="#92400e" stroke-width="4" opacity="0.7"/>
+  <!-- Bottom-right cell -->
+  <polygon points="316,236 366,265 366,323 316,352 266,323 266,265" fill="url(#cell)" stroke="#92400e" stroke-width="4" opacity="0.7"/>
+  <!-- Bottom-left cell -->
+  <polygon points="196,236 246,265 246,323 196,352 146,323 146,265" fill="url(#cell)" stroke="#92400e" stroke-width="4" opacity="0.7"/>
+  <!-- Top-left cell -->
+  <polygon points="196,108 246,137 246,195 196,224 146,195 146,137" fill="url(#cell)" stroke="#92400e" stroke-width="4" opacity="0.7"/>
+  <!-- Code brackets  >_ -->
+  <text x="256" y="440" text-anchor="middle" font-family="Consolas, monospace" font-size="88" font-weight="bold" fill="#451a03" opacity="0.85">&gt;_</text>
+  <!-- Terminal cursor in center cell -->
+  <rect x="238" y="190" width="8" height="30" fill="#451a03" opacity="0.8">
+    <animate attributeName="opacity" values="0.8;0;0.8" dur="1.2s" repeatCount="indefinite"/>
+  </rect>
+</svg>
