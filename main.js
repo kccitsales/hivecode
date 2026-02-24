@@ -4,6 +4,11 @@ const fs = require('fs');
 const pty = require('node-pty');
 const { autoUpdater } = require('electron-updater');
 
+// Enable GPU acceleration for WebGL xterm rendering
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('ignore-gpu-blocklist');
+
 const terminals = new Map();
 const terminalCwds = new Map();
 const stateFile = path.join(app.getPath('userData'), 'layout-state.json');

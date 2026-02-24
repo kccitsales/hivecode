@@ -102,24 +102,6 @@ execSync('npx electron-builder --win --publish always', { cwd: root, stdio: 'inh
 console.log('\nPublishing GitHub Release draft...');
 await publishDraftRelease(newVersion);
 
-// 8. Copy installer to shared drive
-const copyDest = String.raw`Y:\IT영업_물류팀(KKA0116A0)\006.운영문서\최원영\HiveCode`;
-const distDir = path.join(root, 'dist');
-
-try {
-  const installer = fs.readdirSync(distDir).find(f => f.endsWith('.exe') && f.includes(newVersion));
-  if (installer) {
-    const src = path.join(distDir, installer);
-    const dest = path.join(copyDest, installer);
-    fs.copyFileSync(src, dest);
-    console.log(`\nCopied ${installer} -> ${copyDest}`);
-  } else {
-    console.warn('\nWarning: installer .exe not found in dist/');
-  }
-} catch (e) {
-  console.error(`\nFailed to copy to shared drive: ${e.message}`);
-}
-
 console.log(`\n=== v${newVersion} 빌드 & GitHub Release 완료 ===`);
 
 } // end main

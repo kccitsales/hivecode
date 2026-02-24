@@ -28,7 +28,7 @@
   let resizeTimeout;
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimeout);
-    resizeTimeout = setTimeout(() => paneManager.fitAll(), 50);
+    resizeTimeout = setTimeout(() => paneManager.fitAll(), 150);
   });
 
   // --- Patch notes auto-show on first run / update ---

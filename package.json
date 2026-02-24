@@ -1,6 +1,6 @@
 {
   "name": "hivecode",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "description": "Split-pane PowerShell terminal multiplexer with Claude Code",
   "main": "main.js",
   "author": "HiveCode",
@@ -23,7 +23,8 @@
       "preload.js",
       "renderer/**/*",
       "assets/**/*",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "CHANGELOG.md"
     ],
     "win": {
       "icon": "assets/icon.ico",
@@ -52,6 +53,7 @@
   },
   "dependencies": {
     "@xterm/addon-fit": "^0.10.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^5.5.0",
     "electron-updater": "^6.8.3",
     "node-pty": "^1.0.0"

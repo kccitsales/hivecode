@@ -2,12 +2,13 @@ class PaneManager {
   constructor(rootElement, splitTree) {
     this.rootElement = rootElement;
     this.splitTree = splitTree;
-    this.terminals = new Map(); // terminalId -> { xterm, fitAddon, cleanupData, cleanupExit, element, name }
+    this.terminals = new Map(); // terminalId -> { xterm, fitAddon, webglAddon, cleanupData, cleanupExit, element, name }
     this.nodeElements = new Map();
     this.nextTerminalId = 1;
     this.toolbar = null;
     this.activeTerminalId = null;
     this.activeAccount = null; // { id, name, apiKey } or null for default OAuth
+    this._saveTimer = null;
   }
 
   createTerminal(cwd, autoRun) {
@@ -63,7 +64,7 @@ class PaneManager {
     const cleanupData = window.terminalAPI.onData(id, data => xterm.write(data));
     const cleanupExit = window.terminalAPI.onExit(id, () => this.handleTerminalExit(id));
 
-    this.terminals.set(id, { xterm, fitAddon, cleanupData, cleanupExit, element: null, name: `PowerShell ${id}` });
+    this.terminals.set(id, { xterm, fitAddon, webglAddon: null, cleanupData, cleanupExit, element: null, name: `PowerShell ${id}` });
     return id;
   }
 
@@ -270,12 +271,16 @@ class PaneManager {
   }
 
   setActiveTerminal(id) {
+    // Remove active from previous
+    if (this.activeTerminalId !== null) {
+      const prevPane = this.rootElement.querySelector(`.terminal-pane[data-terminal-id="${this.activeTerminalId}"]`);
+      if (prevPane) prevPane.classList.remove('active');
+    }
     this.activeTerminalId = id;
 
-    // Update visual indicator
-    document.querySelectorAll('.terminal-pane').forEach(el => {
-      el.classList.toggle('active', el.dataset.terminalId === String(id));
-    });
+    // Add active to new
+    const newPane = this.rootElement.querySelector(`.terminal-pane[data-terminal-id="${id}"]`);
+    if (newPane) newPane.classList.add('active');
 
     // Focus the xterm instance
     const termInfo = this.terminals.get(id);
@@ -288,8 +293,13 @@ class PaneManager {
     for (const [id, termInfo] of this.terminals) {
       const { fitAddon, xterm } = termInfo;
       try {
+        const prevCols = xterm.cols;
+        const prevRows = xterm.rows;
         fitAddon.fit();
-        window.terminalAPI.resize(id, xterm.cols, xterm.rows);
+        // Only send IPC if size actually changed
+        if (xterm.cols !== prevCols || xterm.rows !== prevRows) {
+          window.terminalAPI.resize(id, xterm.cols, xterm.rows);
+        }
       } catch (e) {
         // ignore fit errors on not-yet-rendered terminals
       }
@@ -439,7 +449,10 @@ class PaneManager {
     termInfo.cleanupData();
     termInfo.cleanupExit();
 
-    // Dispose xterm
+    // Dispose WebGL addon first, then xterm
+    if (termInfo.webglAddon) {
+      try { termInfo.webglAddon.dispose(); } catch (e) {}
+    }
     termInfo.xterm.dispose();
 
     // Tell main process to kill pty
@@ -531,9 +544,12 @@ class PaneManager {
     return node;
   }
 
-  async saveState() {
-    const state = await this.serializeState();
-    window.terminalAPI.saveState(state);
+  saveState() {
+    clearTimeout(this._saveTimer);
+    this._saveTimer = setTimeout(async () => {
+      const state = await this.serializeState();
+      window.terminalAPI.saveState(state);
+    }, 500);
   }
 }
 
@@ -545,6 +561,18 @@ function xterm_open(termInfo, id, manager) {
   if (!termInfo.opened) {
     termInfo.xterm.open(container);
     termInfo.opened = true;
+    // Load WebGL addon for GPU-accelerated rendering
+    try {
+      const webglAddon = new WebglAddon.WebglAddon();
+      webglAddon.onContextLoss(() => {
+        webglAddon.dispose();
+        termInfo.webglAddon = null;
+      });
+      termInfo.xterm.loadAddon(webglAddon);
+      termInfo.webglAddon = webglAddon;
+    } catch (e) {
+      // WebGL not available, fall back to canvas renderer
+    }
   } else {
     // Re-attach existing xterm element
     if (termInfo.xterm.element) {

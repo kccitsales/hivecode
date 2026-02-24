@@ -4,7 +4,11 @@
       "WebSearch",
       "Bash(taskkill:*)",
       "WebFetch(domain:api.github.com)",
-      "Bash(cd:*)"
+      "Bash(cd:*)",
+      "Bash(head:*)",
+      "Bash(cd D:/workspace_py/multiVibe && npm run dist 2>&1)",
+      "Bash(cd D:/workspace_py/multiVibe && printf 'WebGL 터미널 렌더러 적용 \\(GPU 가속 렌더링\\)\\\\nGPU 래스터화 활성화로 전체 렌더링 성능 향상\\\\n상태 저장 디바운스 및 리사이즈 최적화\\\\n패치노트 빌드 누락 수정\\\\n\\\\n' | npm run dist 2>&1)",
+      "Bash(cd D:/workspace_py/multiVibe && git add -A && git commit -m \"v1.0.8\" && git tag v1.0.8 && git push && git push --tags 2>&1)"
     ]
   }
 }
