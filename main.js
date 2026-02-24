@@ -17,6 +17,11 @@ const accountsFile = path.join(app.getPath('userData'), 'accounts.json');
 const patchnotesFile = path.join(app.getPath('userData'), 'patchnotes-seen.json');
 const notifySettingsFile = path.join(app.getPath('userData'), 'notify-settings.json');
 const commandStartTimes = new Map();
+const promptSeen = new Map(); // true when PowerShell prompt is visible (OSC 7 received)
+const idleTimers = new Map();
+const inputBuffers = new Map();   // keystroke buffer per terminal
+const commandLabels = new Map();  // captured command/message text per terminal
+const IDLE_DETECT_MS = 2000; // 2 seconds idle = response complete (for TUI apps)
 let notifySettings = { enabled: true, thresholdSeconds: 10 };
 
 // Load notification settings from disk
@@ -85,37 +90,62 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
 
   terminalCwds.set(id, startDir);
 
+  // Send Windows notification
+  function sendNotification(label, cmdStart) {
+    const elapsed = (Date.now() - cmdStart) / 1000;
+    if (elapsed < notifySettings.thresholdSeconds) return;
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = Math.floor(elapsed % 60);
+    const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+    const cmdLabel = commandLabels.get(id) || '';
+    const body = cmdLabel
+      ? `${label}: ${cmdLabel}\n${duration}`
+      : `${label} (${duration})`;
+
+    if (Notification.isSupported()) {
+      new Notification({
+        title: 'HiveCode',
+        body,
+        icon: path.join(__dirname, 'assets', 'icon.png')
+      }).show();
+    }
+  }
+
   ptyProcess.onData((data) => {
     // Parse OSC 7 sequence to track CWD: ESC ] 7 ; PATH BEL
     const cwdMatch = data.match(/\x1b\]7;(.+?)\x07/);
     if (cwdMatch) {
       terminalCwds.set(id, cwdMatch[1]);
+      promptSeen.set(id, true);
 
-      // Command completion detection
-      const startTime = commandStartTimes.get(id);
-      if (startTime && notifySettings.enabled) {
-        const elapsed = (Date.now() - startTime) / 1000;
-        if (elapsed >= notifySettings.thresholdSeconds) {
-          const minutes = Math.floor(elapsed / 60);
-          const seconds = Math.floor(elapsed % 60);
-          const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+      // Clear any idle timer — prompt-based detection takes over
+      if (idleTimers.has(id)) {
+        clearTimeout(idleTimers.get(id));
+        idleTimers.delete(id);
+      }
 
-          if (!event.sender.isDestroyed()) {
-            event.sender.send('notify:command-complete', { id, duration, elapsed });
-          }
-
-          // OS notification when window is not focused
-          const win = BrowserWindow.getFocusedWindow();
-          if (!win && Notification.isSupported()) {
-            new Notification({
-              title: 'HiveCode',
-              body: `명령 완료 (${duration})`,
-              icon: path.join(__dirname, 'assets', 'icon.png')
-            }).show();
-          }
-        }
+      // OSC 7 = prompt appeared = previous command completed
+      const cmdStart = commandStartTimes.get(id);
+      if (cmdStart && notifySettings.enabled) {
+        sendNotification('명령 완료', cmdStart);
         commandStartTimes.delete(id);
       }
+    } else if (!promptSeen.get(id) && commandStartTimes.get(id) && notifySettings.enabled) {
+      // Inside TUI app (e.g. claude) — use idle detection
+      if (idleTimers.has(id)) {
+        clearTimeout(idleTimers.get(id));
+      }
+      idleTimers.set(id, setTimeout(() => {
+        const cmdStart = commandStartTimes.get(id);
+        if (!cmdStart) { idleTimers.delete(id); return; }
+        const elapsed = (Date.now() - cmdStart) / 1000;
+        if (notifySettings.enabled && elapsed >= notifySettings.thresholdSeconds) {
+          sendNotification('응답 완료', cmdStart);
+          commandStartTimes.delete(id);
+        }
+        // If threshold not met, keep commandStartTimes for OSC 7 detection
+        idleTimers.delete(id);
+      }, IDLE_DETECT_MS));
     }
 
     if (!event.sender.isDestroyed()) {
@@ -127,6 +157,13 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
     terminals.delete(id);
     terminalCwds.delete(id);
     commandStartTimes.delete(id);
+    promptSeen.delete(id);
+    inputBuffers.delete(id);
+    commandLabels.delete(id);
+    if (idleTimers.has(id)) {
+      clearTimeout(idleTimers.get(id));
+      idleTimers.delete(id);
+    }
     if (!event.sender.isDestroyed()) {
       event.sender.send(`terminal:exit:${id}`, { exitCode });
     }
@@ -150,7 +187,29 @@ ipcMain.on('terminal:write', (_event, { id, data }) => {
   const ptyProcess = terminals.get(id);
   if (ptyProcess) {
     if (data.includes('\r')) {
-      commandStartTimes.set(id, Date.now());
+      // Save buffered input as command label
+      const buf = (inputBuffers.get(id) || '').trim();
+      if (buf) {
+        commandLabels.set(id, buf.length > 60 ? buf.substring(0, 60) + '...' : buf);
+      }
+      inputBuffers.set(id, '');
+
+      if (promptSeen.get(id)) {
+        commandStartTimes.set(id, Date.now());
+        promptSeen.set(id, false);
+      } else {
+        commandStartTimes.set(id, Date.now());
+      }
+    } else if (data === '\x7f' || data === '\b') {
+      // Backspace — remove last char from buffer
+      const buf = inputBuffers.get(id) || '';
+      inputBuffers.set(id, buf.slice(0, -1));
+    } else if (data === '\x03') {
+      // Ctrl+C — clear buffer
+      inputBuffers.set(id, '');
+    } else if (!data.startsWith('\x1b')) {
+      // Printable character — append to buffer
+      inputBuffers.set(id, (inputBuffers.get(id) || '') + data);
     }
     ptyProcess.write(data);
   }

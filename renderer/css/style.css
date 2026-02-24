@@ -748,70 +748,25 @@ body {
 .toolbar-notify-btn {
   background: transparent;
   border: 1px solid transparent;
-  color: #888;
+  color: #555;
   font-size: 15px;
   padding: 2px 8px;
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
+  transition: color 0.2s, background 0.2s, opacity 0.2s;
   margin-right: 2px;
+  opacity: 0.5;
 }
 .toolbar-notify-btn:hover {
   background: #3a3a3a;
-  color: #e0e0e0;
+  opacity: 0.8;
 }
 .toolbar-notify-btn.active {
   color: #007acc;
+  opacity: 1;
 }
 .toolbar-notify-btn.active:hover {
   color: #3399dd;
+  opacity: 1;
 }
 
-/* --- Command completion toast --- */
-.notify-toast {
-  position: fixed;
-  bottom: 12px;
-  right: 16px;
-  background: #252526;
-  border: 1px solid #007acc;
-  border-radius: 6px;
-  padding: 10px 16px;
-  color: #e0e0e0;
-  font-size: 13px;
-  z-index: 200;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
-  min-width: 220px;
-  max-width: 360px;
-  animation: notifySlideIn 0.3s ease;
-}
-.notify-toast:hover {
-  border-color: #3399dd;
-  background: #2a2d2e;
-}
-.notify-toast-title {
-  font-weight: bold;
-  margin-bottom: 2px;
-  color: #fff;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.notify-toast-body {
-  color: #4ec9b0;
-  font-size: 12px;
-}
-
-@keyframes notifySlideIn {
-  from { opacity: 0; transform: translateX(60px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.notify-toast-exit {
-  animation: notifyFadeOut 0.3s ease forwards;
-}
-
-@keyframes notifyFadeOut {
-  from { opacity: 1; transform: translateX(0); }
-  to   { opacity: 0; transform: translateX(60px); }
-}
