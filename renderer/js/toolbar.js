@@ -59,6 +59,12 @@ class Toolbar {
     this.accountBtn = this._createButton('\u{1F464} 기본', (e) => this._showAccountMenu(e.target));
     this.accountBtn.className = 'toolbar-account-btn';
 
+    // Notification toggle button
+    this.notifyBtn = this._createButton('\u{1F514}', () => this._toggleNotify());
+    this.notifyBtn.className = 'toolbar-notify-btn';
+    this.notifyBtn.title = '명령 완료 알림';
+    this._loadNotifyState();
+
     const helpBtn = this._createButton('?', () => this._showHelp());
     helpBtn.className = 'toolbar-help-btn';
 
@@ -75,7 +81,7 @@ class Toolbar {
 
     winControls.append(minBtn, maxBtn, closeBtn);
 
-    this.element.append(icon, title, version, addBtn, projectBtn, splitHBtn, splitVBtn, spacer, this.accountBtn, helpBtn, winControls);
+    this.element.append(icon, title, version, addBtn, projectBtn, splitHBtn, splitVBtn, spacer, this.accountBtn, this.notifyBtn, helpBtn, winControls);
 
     // Load saved active account
     this._loadActiveAccount();
@@ -457,6 +463,26 @@ class Toolbar {
     document.addEventListener('keydown', onEsc);
   }
 
+  async _loadNotifyState() {
+    const settings = await window.terminalAPI.loadNotifySettings();
+    if (settings.enabled) {
+      this.notifyBtn.classList.add('active');
+    } else {
+      this.notifyBtn.classList.remove('active');
+    }
+  }
+
+  async _toggleNotify() {
+    const settings = await window.terminalAPI.loadNotifySettings();
+    settings.enabled = !settings.enabled;
+    window.terminalAPI.saveNotifySettings(settings);
+    if (settings.enabled) {
+      this.notifyBtn.classList.add('active');
+    } else {
+      this.notifyBtn.classList.remove('active');
+    }
+  }
+
   _showHelp() {
     // Remove existing modal if any
     const existing = document.getElementById('help-modal');
@@ -481,6 +507,7 @@ class Toolbar {
             <tr><td class="help-key">+ New</td><td>새 PowerShell 터미널 추가 (좌우 분할)</td></tr>
             <tr><td class="help-key">+ Project</td><td>최근 프로젝트 또는 폴더 선택 후 Claude Code 자동 실행</td></tr>
             <tr><td class="help-key">\u{1F464} 계정</td><td>API Key 계정 전환 (새 터미널에 적용)</td></tr>
+            <tr><td class="help-key">\u{1F514} 알림</td><td>장시간 명령 완료 알림 켜기/끄기 (기본 10초 이상)</td></tr>
             <tr><td class="help-key">Split \u2194</td><td>활성 패인을 좌우로 분할</td></tr>
             <tr><td class="help-key">Split \u2195</td><td>활성 패인을 상하로 분할</td></tr>
           </table>

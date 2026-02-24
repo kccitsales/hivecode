@@ -38,5 +38,8 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   onUpdateDownloadStarted: (callback) => ipcRenderer.on('update:download-started', () => callback()),
   onUpdateProgress: (callback) => ipcRenderer.on('update:download-progress', (_event, data) => callback(data)),
   onUpdateDownloaded: (callback) => ipcRenderer.on('update:downloaded', () => callback()),
-  onUpdateError: (callback) => ipcRenderer.on('update:error', (_event, message) => callback(message))
+  onUpdateError: (callback) => ipcRenderer.on('update:error', (_event, message) => callback(message)),
+  loadNotifySettings: () => ipcRenderer.invoke('notify:load-settings'),
+  saveNotifySettings: (settings) => ipcRenderer.send('notify:save-settings', settings),
+  onCommandComplete: (callback) => ipcRenderer.on('notify:command-complete', (_event, data) => callback(data))
 });

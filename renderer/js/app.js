@@ -41,6 +41,43 @@
     // ignore patch notes errors
   }
 
+  // --- Command completion notification toasts ---
+  window.terminalAPI.onCommandComplete((data) => {
+    const termInfo = paneManager.terminals.get(data.id);
+    const name = termInfo ? termInfo.name : `Terminal ${data.id}`;
+    showNotifyToast(name, data.duration, () => {
+      paneManager.setActiveTerminal(data.id);
+    });
+  });
+
+  function showNotifyToast(name, duration, onClick) {
+    const toast = document.createElement('div');
+    toast.className = 'notify-toast';
+    toast.innerHTML =
+      '<div class="notify-toast-title">' + name + '</div>' +
+      '<div class="notify-toast-body">' + '명령 완료 — ' + duration + '</div>';
+
+    toast.addEventListener('click', () => {
+      toast.remove();
+      if (onClick) onClick();
+    });
+
+    document.body.appendChild(toast);
+
+    // Stack multiple toasts
+    const toasts = document.querySelectorAll('.notify-toast');
+    let offset = 12;
+    for (let i = toasts.length - 1; i >= 0; i--) {
+      toasts[i].style.bottom = offset + 'px';
+      offset += toasts[i].offsetHeight + 8;
+    }
+
+    setTimeout(() => {
+      toast.classList.add('notify-toast-exit');
+      toast.addEventListener('animationend', () => toast.remove());
+    }, 5000);
+  }
+
   // --- Update download progress overlay ---
   let updateOverlay = null;
 

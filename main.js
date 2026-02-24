@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, nativeImage, clipboard } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, nativeImage, clipboard, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const pty = require('node-pty');
@@ -15,6 +15,22 @@ const stateFile = path.join(app.getPath('userData'), 'layout-state.json');
 const recentFile = path.join(app.getPath('userData'), 'recent-projects.json');
 const accountsFile = path.join(app.getPath('userData'), 'accounts.json');
 const patchnotesFile = path.join(app.getPath('userData'), 'patchnotes-seen.json');
+const notifySettingsFile = path.join(app.getPath('userData'), 'notify-settings.json');
+const commandStartTimes = new Map();
+let notifySettings = { enabled: true, thresholdSeconds: 10 };
+
+// Load notification settings from disk
+function loadNotifySettings() {
+  try {
+    if (fs.existsSync(notifySettingsFile)) {
+      notifySettings = JSON.parse(fs.readFileSync(notifySettingsFile, 'utf8'));
+    }
+  } catch (e) {
+    // ignore read/parse errors
+  }
+  return notifySettings;
+}
+loadNotifySettings();
 
 // PowerShell prompt override that emits OSC 7 with current directory
 const PROMPT_INJECT = 'function prompt { $p = (Get-Location).Path; "$([char]27)]7;$p$([char]7)PS $p> " }; Set-Alias cc claude\r';
@@ -74,6 +90,32 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
     const cwdMatch = data.match(/\x1b\]7;(.+?)\x07/);
     if (cwdMatch) {
       terminalCwds.set(id, cwdMatch[1]);
+
+      // Command completion detection
+      const startTime = commandStartTimes.get(id);
+      if (startTime && notifySettings.enabled) {
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed >= notifySettings.thresholdSeconds) {
+          const minutes = Math.floor(elapsed / 60);
+          const seconds = Math.floor(elapsed % 60);
+          const duration = minutes > 0 ? `${minutes}분 ${seconds}초` : `${seconds}초`;
+
+          if (!event.sender.isDestroyed()) {
+            event.sender.send('notify:command-complete', { id, duration, elapsed });
+          }
+
+          // OS notification when window is not focused
+          const win = BrowserWindow.getFocusedWindow();
+          if (!win && Notification.isSupported()) {
+            new Notification({
+              title: 'HiveCode',
+              body: `명령 완료 (${duration})`,
+              icon: path.join(__dirname, 'assets', 'icon.png')
+            }).show();
+          }
+        }
+        commandStartTimes.delete(id);
+      }
     }
 
     if (!event.sender.isDestroyed()) {
@@ -84,6 +126,7 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
   ptyProcess.onExit(({ exitCode }) => {
     terminals.delete(id);
     terminalCwds.delete(id);
+    commandStartTimes.delete(id);
     if (!event.sender.isDestroyed()) {
       event.sender.send(`terminal:exit:${id}`, { exitCode });
     }
@@ -106,6 +149,9 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
 ipcMain.on('terminal:write', (_event, { id, data }) => {
   const ptyProcess = terminals.get(id);
   if (ptyProcess) {
+    if (data.includes('\r')) {
+      commandStartTimes.set(id, Date.now());
+    }
     ptyProcess.write(data);
   }
 });
@@ -258,6 +304,21 @@ ipcMain.handle('clipboard:saveImage', async () => {
   const filePath = path.join(dir, `clipboard-${Date.now()}.png`);
   fs.writeFileSync(filePath, img.toPNG());
   return filePath;
+});
+
+// IPC: load notification settings
+ipcMain.handle('notify:load-settings', () => {
+  return loadNotifySettings();
+});
+
+// IPC: save notification settings
+ipcMain.on('notify:save-settings', (_event, settings) => {
+  notifySettings = settings;
+  try {
+    fs.writeFileSync(notifySettingsFile, JSON.stringify(settings, null, 2), 'utf8');
+  } catch (e) {
+    // ignore write errors
+  }
 });
 
 app.whenReady().then(() => {
