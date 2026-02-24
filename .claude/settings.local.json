@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "WebSearch",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(cd:*)"
     ]
   }
 }

@@ -51,6 +51,8 @@ class Toolbar {
 
     const version = document.createElement('span');
     version.className = 'toolbar-version';
+    version.title = '패치노트 보기';
+    version.addEventListener('click', () => this.showPatchNotes());
     window.terminalAPI.getVersion().then(v => { version.textContent = `v${v}`; });
 
     // Account button
@@ -350,6 +352,109 @@ class Toolbar {
     };
     // Delay to avoid immediate close
     setTimeout(() => document.addEventListener('mousedown', closeMenu), 0);
+  }
+
+  async showPatchNotes() {
+    // Remove existing modal if any
+    const existing = document.getElementById('patchnotes-modal');
+    if (existing) { existing.remove(); return; }
+
+    const data = await window.terminalAPI.loadPatchNotes();
+    if (!data || !data.changelog) return;
+
+    const { changelog, currentVersion } = data;
+
+    // Parse CHANGELOG.md: split by "## v" headers
+    const sections = [];
+    const lines = changelog.split('\n');
+    let current = null;
+
+    for (const line of lines) {
+      if (line.startsWith('## v')) {
+        if (current) sections.push(current);
+        const headerMatch = line.match(/^## (v[\d.]+)\s*(.*)$/);
+        current = {
+          version: headerMatch ? headerMatch[1] : line.replace('## ', ''),
+          date: headerMatch ? headerMatch[2].replace(/[()]/g, '') : '',
+          items: []
+        };
+      } else if (current && line.startsWith('- ')) {
+        current.items.push(line.substring(2));
+      }
+    }
+    if (current) sections.push(current);
+
+    // Show only the most recent 5 versions
+    const displaySections = sections.slice(0, 5);
+
+    const overlay = document.createElement('div');
+    overlay.id = 'patchnotes-modal';
+    overlay.className = 'help-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'help-modal patchnotes-modal';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'help-header';
+    header.innerHTML = '<span class="help-title">\ud328\uce58\ub178\ud2b8</span><button class="help-close-btn">\u00d7</button>';
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'patchnotes-body';
+
+    displaySections.forEach(section => {
+      const sectionEl = document.createElement('div');
+      sectionEl.className = 'patchnotes-section';
+
+      const sectionHeader = document.createElement('div');
+      sectionHeader.className = 'patchnotes-section-header';
+
+      const h3 = document.createElement('h3');
+      h3.textContent = section.version + (section.date ? '  ' + section.date : '');
+      sectionHeader.appendChild(h3);
+
+      // "NEW" badge for current version
+      if (section.version === 'v' + currentVersion) {
+        const tag = document.createElement('span');
+        tag.className = 'patchnotes-version-tag';
+        tag.textContent = 'NEW';
+        sectionHeader.appendChild(tag);
+      }
+
+      sectionEl.appendChild(sectionHeader);
+
+      section.items.forEach(item => {
+        const itemEl = document.createElement('div');
+        itemEl.className = 'patchnotes-item';
+        itemEl.textContent = item;
+        sectionEl.appendChild(itemEl);
+      });
+
+      body.appendChild(sectionEl);
+    });
+
+    modal.appendChild(header);
+    modal.appendChild(body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Close handlers
+    const close = () => {
+      overlay.remove();
+      window.terminalAPI.markPatchNotesSeen(currentVersion);
+      document.removeEventListener('keydown', onEsc);
+    };
+
+    header.querySelector('.help-close-btn').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) close();
+    });
+
+    const onEsc = (e) => {
+      if (e.key === 'Escape') close();
+    };
+    document.addEventListener('keydown', onEsc);
   }
 
   _showHelp() {

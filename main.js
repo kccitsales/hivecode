@@ -9,6 +9,7 @@ const terminalCwds = new Map();
 const stateFile = path.join(app.getPath('userData'), 'layout-state.json');
 const recentFile = path.join(app.getPath('userData'), 'recent-projects.json');
 const accountsFile = path.join(app.getPath('userData'), 'accounts.json');
+const patchnotesFile = path.join(app.getPath('userData'), 'patchnotes-seen.json');
 
 // PowerShell prompt override that emits OSC 7 with current directory
 const PROMPT_INJECT = 'function prompt { $p = (Get-Location).Path; "$([char]27)]7;$p$([char]7)PS $p> " }; Set-Alias cc claude\r';
@@ -42,6 +43,8 @@ function createWindow() {
     }
   });
   ipcMain.on('win:close', () => mainWindow.close());
+
+  return mainWindow;
 }
 
 // IPC: create a new PowerShell pty
@@ -205,6 +208,40 @@ ipcMain.handle('state:load', () => {
   return null;
 });
 
+// IPC: load patch notes (CHANGELOG + version info)
+ipcMain.handle('patchnotes:load', () => {
+  let changelog = '';
+  try {
+    const changelogPath = path.join(__dirname, 'CHANGELOG.md');
+    if (fs.existsSync(changelogPath)) {
+      changelog = fs.readFileSync(changelogPath, 'utf8');
+    }
+  } catch (e) {
+    // ignore read errors
+  }
+
+  let seenVersion = null;
+  try {
+    if (fs.existsSync(patchnotesFile)) {
+      const data = JSON.parse(fs.readFileSync(patchnotesFile, 'utf8'));
+      seenVersion = data.seenVersion || null;
+    }
+  } catch (e) {
+    // ignore read/parse errors
+  }
+
+  return { changelog, currentVersion: app.getVersion(), seenVersion };
+});
+
+// IPC: mark patch notes as seen
+ipcMain.on('patchnotes:markSeen', (_event, version) => {
+  try {
+    fs.writeFileSync(patchnotesFile, JSON.stringify({ seenVersion: version }, null, 2), 'utf8');
+  } catch (e) {
+    // ignore write errors
+  }
+});
+
 // IPC: save clipboard image to temp file and return path
 ipcMain.handle('clipboard:saveImage', async () => {
   const img = clipboard.readImage();
@@ -219,7 +256,7 @@ ipcMain.handle('clipboard:saveImage', async () => {
 });
 
 app.whenReady().then(() => {
-  createWindow();
+  const mainWindow = createWindow();
 
   // Auto-update (GitHub)
   autoUpdater.autoDownload = false;
@@ -234,11 +271,24 @@ app.whenReady().then(() => {
       message: `새 버전 ${info.version}이 있습니다. 다운로드하시겠습니까?`,
       buttons: ['다운로드', '나중에']
     }).then(({ response }) => {
-      if (response === 0) autoUpdater.downloadUpdate();
+      if (response === 0) {
+        mainWindow.webContents.send('update:download-started');
+        autoUpdater.downloadUpdate();
+      }
+    });
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    mainWindow.webContents.send('update:download-progress', {
+      percent: progress.percent,
+      bytesPerSecond: progress.bytesPerSecond,
+      transferred: progress.transferred,
+      total: progress.total
     });
   });
 
   autoUpdater.on('update-downloaded', () => {
+    mainWindow.webContents.send('update:downloaded');
     dialog.showMessageBox({
       type: 'info',
       title: 'Update Ready',
@@ -247,6 +297,10 @@ app.whenReady().then(() => {
     }).then(({ response }) => {
       if (response === 0) autoUpdater.quitAndInstall();
     });
+  });
+
+  autoUpdater.on('error', (err) => {
+    mainWindow.webContents.send('update:error', err.message);
   });
 });
 

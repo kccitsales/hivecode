@@ -32,5 +32,11 @@ contextBridge.exposeInMainWorld('terminalAPI', {
   getVersion: () => ipcRenderer.invoke('app:version'),
   winMinimize: () => ipcRenderer.send('win:minimize'),
   winMaximize: () => ipcRenderer.send('win:maximize'),
-  winClose: () => ipcRenderer.send('win:close')
+  winClose: () => ipcRenderer.send('win:close'),
+  loadPatchNotes: () => ipcRenderer.invoke('patchnotes:load'),
+  markPatchNotesSeen: (version) => ipcRenderer.send('patchnotes:markSeen', version),
+  onUpdateDownloadStarted: (callback) => ipcRenderer.on('update:download-started', () => callback()),
+  onUpdateProgress: (callback) => ipcRenderer.on('update:download-progress', (_event, data) => callback(data)),
+  onUpdateDownloaded: (callback) => ipcRenderer.on('update:downloaded', () => callback()),
+  onUpdateError: (callback) => ipcRenderer.on('update:error', (_event, message) => callback(message))
 });

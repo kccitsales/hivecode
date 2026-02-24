@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const readline = require('readline');
 const { execSync } = require('child_process');
 
@@ -97,7 +98,11 @@ console.log(`Tag v${newVersion} pushed to GitHub`);
 console.log('\nBuilding & publishing to GitHub Releases...\n');
 execSync('npx electron-builder --win --publish always', { cwd: root, stdio: 'inherit' });
 
-// 7. Copy installer to shared drive
+// 7. Publish draft release on GitHub
+console.log('\nPublishing GitHub Release draft...');
+await publishDraftRelease(newVersion);
+
+// 8. Copy installer to shared drive
 const copyDest = String.raw`Y:\IT영업_물류팀(KKA0116A0)\006.운영문서\최원영\HiveCode`;
 const distDir = path.join(root, 'dist');
 
@@ -118,4 +123,63 @@ try {
 console.log(`\n=== v${newVersion} 빌드 & GitHub Release 완료 ===`);
 
 } // end main
+
+function publishDraftRelease(version) {
+  return new Promise((resolve, reject) => {
+    const token = process.env.GH_TOKEN;
+    const listOptions = {
+      hostname: 'api.github.com',
+      path: '/repos/kccitsales/hivecode/releases',
+      method: 'GET',
+      headers: {
+        'Authorization': `token ${token}`,
+        'User-Agent': 'hivecode-build',
+      }
+    };
+
+    https.get(listOptions, (res) => {
+      let body = '';
+      res.on('data', d => body += d);
+      res.on('end', () => {
+        const releases = JSON.parse(body);
+        const draft = releases.find(r => r.tag_name === `v${version}` && r.draft);
+        if (!draft) {
+          console.log(`  v${version} 릴리즈가 이미 published 상태이거나 찾을 수 없습니다.`);
+          return resolve();
+        }
+
+        const data = JSON.stringify({ draft: false, tag_name: `v${version}`, make_latest: 'true' });
+        const patchOptions = {
+          hostname: 'api.github.com',
+          path: `/repos/kccitsales/hivecode/releases/${draft.id}`,
+          method: 'PATCH',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'hivecode-build',
+            'Content-Length': Buffer.byteLength(data),
+          }
+        };
+
+        const req = https.request(patchOptions, (res2) => {
+          let body2 = '';
+          res2.on('data', d => body2 += d);
+          res2.on('end', () => {
+            const result = JSON.parse(body2);
+            if (result.draft === false) {
+              console.log(`  v${version} 릴리즈 published 완료! (${result.published_at})`);
+            } else {
+              console.error(`  v${version} 릴리즈 publish 실패:`, result.message || 'unknown error');
+            }
+            resolve();
+          });
+        });
+        req.on('error', (e) => { console.error('  Publish 요청 실패:', e.message); resolve(); });
+        req.write(data);
+        req.end();
+      });
+    }).on('error', (e) => { console.error('  릴리즈 목록 조회 실패:', e.message); resolve(); });
+  });
+}
+
 main();
