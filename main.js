@@ -141,9 +141,9 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
         const elapsed = (Date.now() - cmdStart) / 1000;
         if (notifySettings.enabled && elapsed >= notifySettings.thresholdSeconds) {
           sendNotification('응답 완료', cmdStart);
-          commandStartTimes.delete(id);
         }
-        // If threshold not met, keep commandStartTimes for OSC 7 detection
+        // 2s idle = response done; always clear to prevent stale false positives
+        commandStartTimes.delete(id);
         idleTimers.delete(id);
       }, IDLE_DETECT_MS));
     }
