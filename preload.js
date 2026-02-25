@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('terminalAPI', {
     return () => ipcRenderer.removeListener(channel, listener);
   },
   openFolder: () => ipcRenderer.invoke('dialog:openFolder'),
+  saveFileDialog: () => ipcRenderer.invoke('dialog:saveFile'),
+  writeFile: (filePath, content) => ipcRenderer.send('file:write', { filePath, content }),
   getCwds: () => ipcRenderer.invoke('terminal:getcwds'),
   saveState: (state) => ipcRenderer.send('state:save', state),
   loadState: () => ipcRenderer.invoke('state:load'),

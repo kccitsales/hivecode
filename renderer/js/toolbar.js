@@ -463,24 +463,28 @@ class Toolbar {
     document.addEventListener('keydown', onEsc);
   }
 
+  _updateNotifyBtn(enabled) {
+    if (enabled) {
+      this.notifyBtn.textContent = '\u{1F514}';
+      this.notifyBtn.classList.add('active');
+      this.notifyBtn.title = '명령 완료 알림 (켜짐)';
+    } else {
+      this.notifyBtn.textContent = '\u{1F515}';
+      this.notifyBtn.classList.remove('active');
+      this.notifyBtn.title = '명령 완료 알림 (꺼짐)';
+    }
+  }
+
   async _loadNotifyState() {
     const settings = await window.terminalAPI.loadNotifySettings();
-    if (settings.enabled) {
-      this.notifyBtn.classList.add('active');
-    } else {
-      this.notifyBtn.classList.remove('active');
-    }
+    this._updateNotifyBtn(settings.enabled);
   }
 
   async _toggleNotify() {
     const settings = await window.terminalAPI.loadNotifySettings();
     settings.enabled = !settings.enabled;
     window.terminalAPI.saveNotifySettings(settings);
-    if (settings.enabled) {
-      this.notifyBtn.classList.add('active');
-    } else {
-      this.notifyBtn.classList.remove('active');
-    }
+    this._updateNotifyBtn(settings.enabled);
   }
 
   _showHelp() {

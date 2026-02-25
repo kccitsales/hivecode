@@ -34,12 +34,12 @@ class PaneManager {
     // Ctrl+V: paste from clipboard
     xterm.attachCustomKeyEventHandler((e) => {
       if (e.type === 'keydown' && e.ctrlKey) {
-        if (e.key === 'c' && xterm.hasSelection()) {
+        if (e.code === 'KeyC' && xterm.hasSelection()) {
           window.terminalAPI.clipboardWrite(xterm.getSelection());
           xterm.clearSelection();
           return false; // prevent sending to shell
         }
-        if (e.key === 'v') {
+        if (e.code === 'KeyV') {
           e.preventDefault();
           if (window.terminalAPI.clipboardHasImage()) {
             window.terminalAPI.clipboardSaveImage().then(filePath => {
@@ -47,7 +47,14 @@ class PaneManager {
             });
           } else {
             const text = window.terminalAPI.clipboardRead();
-            if (text) window.terminalAPI.write(id, text);
+            if (text) {
+              // Respect bracketed paste mode if active
+              if (xterm.modes.bracketedPasteMode) {
+                window.terminalAPI.write(id, '\x1b[200~' + text + '\x1b[201~');
+              } else {
+                window.terminalAPI.write(id, text);
+              }
+            }
           }
           return false;
         }
@@ -128,6 +135,15 @@ class PaneManager {
       this._startRename(nameLabel, node.terminalId);
     });
 
+    const exportBtn = document.createElement('button');
+    exportBtn.className = 'pane-export-btn';
+    exportBtn.textContent = '\ud83d\udccb';
+    exportBtn.title = 'Export pane (Ctrl+Shift+E)';
+    exportBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.exportPane(node.terminalId);
+    });
+
     const closeBtn = document.createElement('button');
     closeBtn.className = 'pane-close-btn';
     closeBtn.textContent = '\u00d7';
@@ -137,6 +153,7 @@ class PaneManager {
     });
 
     header.appendChild(nameLabel);
+    header.appendChild(exportBtn);
     header.appendChild(closeBtn);
     pane.appendChild(header);
 
@@ -542,6 +559,25 @@ class PaneManager {
       this._restoreNode(data.children[1], node)
     ];
     return node;
+  }
+
+  async exportPane(terminalId) {
+    const termInfo = this.terminals.get(terminalId);
+    if (!termInfo) return;
+
+    const buffer = termInfo.xterm.buffer.active;
+    const lines = [];
+    for (let i = 0; i < buffer.length; i++) {
+      const line = buffer.getLine(i);
+      if (line) lines.push(line.translateToString(true));
+    }
+    const content = lines.join('\n').trimEnd();
+    const markdown = `# ${termInfo.name}\n\n\`\`\`\n${content}\n\`\`\`\n`;
+
+    const filePath = await window.terminalAPI.saveFileDialog();
+    if (filePath) {
+      window.terminalAPI.writeFile(filePath, markdown);
+    }
   }
 
   saveState() {

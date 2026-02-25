@@ -1,6 +1,6 @@
 {
   "name": "hivecode",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "description": "Split-pane PowerShell terminal multiplexer with Claude Code",
   "main": "main.js",
   "author": "HiveCode",

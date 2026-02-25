@@ -236,6 +236,30 @@ ipcMain.on('terminal:close', (_event, { id }) => {
   }
 });
 
+// IPC: save file dialog (for exporting pane content)
+ipcMain.handle('dialog:saveFile', async () => {
+  const result = await dialog.showSaveDialog({
+    title: 'Export Pane',
+    defaultPath: 'conversation.md',
+    filters: [
+      { name: 'Markdown', extensions: ['md'] },
+      { name: 'Text', extensions: ['txt'] },
+      { name: 'All Files', extensions: ['*'] }
+    ]
+  });
+  if (result.canceled) return null;
+  return result.filePath;
+});
+
+// IPC: write file to disk
+ipcMain.on('file:write', (_event, { filePath, content }) => {
+  try {
+    fs.writeFileSync(filePath, content, 'utf8');
+  } catch (e) {
+    // ignore write errors
+  }
+});
+
 // IPC: open folder picker dialog
 ipcMain.handle('dialog:openFolder', async () => {
   const result = await dialog.showOpenDialog({

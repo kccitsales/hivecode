@@ -209,6 +209,29 @@ body {
   background: #007acc;
 }
 
+.pane-export-btn {
+  background: transparent;
+  border: none;
+  color: #888;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 28px;
+  flex-shrink: 0;
+}
+
+.pane-export-btn:hover {
+  color: #007acc;
+}
+
+.terminal-pane.active .pane-export-btn {
+  color: #bbb;
+}
+
+.terminal-pane.active .pane-export-btn:hover {
+  color: #3399dd;
+}
+
 .pane-close-btn {
   background: transparent;
   border: none;
