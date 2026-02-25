@@ -31,13 +31,24 @@
     resizeTimeout = setTimeout(() => paneManager.fitAll(), 150);
   });
 
-  // Ctrl+Shift+E: export active pane
+  // Initialize chain listener for orchestration
+  paneManager.setupChainListener();
+
+  // Global keyboard shortcuts
   window.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.shiftKey && e.key === 'E') {
       e.preventDefault();
       if (paneManager.activeTerminalId !== null) {
         paneManager.exportPane(paneManager.activeTerminalId);
       }
+    }
+    if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+      e.preventDefault();
+      toolbar._showBroadcastBar();
+    }
+    if (e.ctrlKey && e.shiftKey && e.key === 'C') {
+      e.preventDefault();
+      toolbar._showChainModal();
     }
   });
 

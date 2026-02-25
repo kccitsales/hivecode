@@ -9,6 +9,7 @@ class PaneManager {
     this.activeTerminalId = null;
     this.activeAccount = null; // { id, name, apiKey } or null for default OAuth
     this._saveTimer = null;
+    this.chainRules = []; // { id, sourceId, targetId, command, once }
   }
 
   createTerminal(cwd, autoRun) {
@@ -458,6 +459,20 @@ class PaneManager {
     window.terminalAPI.saveRecentProjects(recents);
   }
 
+  setupChainListener() {
+    window.terminalAPI.onCommandComplete(({ id }) => {
+      const toExecute = this.chainRules.filter(r => r.sourceId === id);
+      toExecute.forEach(rule => {
+        // Only execute if target terminal still exists
+        if (this.terminals.has(rule.targetId)) {
+          window.terminalAPI.write(rule.targetId, rule.command + '\r');
+        }
+      });
+      // Remove one-time rules that fired
+      this.chainRules = this.chainRules.filter(r => !(r.sourceId === id && r.once));
+    });
+  }
+
   closePane(terminalId) {
     const termInfo = this.terminals.get(terminalId);
     if (!termInfo) return;
@@ -477,6 +492,9 @@ class PaneManager {
 
     // Remove from map
     this.terminals.delete(terminalId);
+
+    // Clean up chain rules involving this terminal
+    this.chainRules = this.chainRules.filter(r => r.sourceId !== terminalId && r.targetId !== terminalId);
 
     // Update tree
     const leaf = this.splitTree.findLeaf(terminalId);

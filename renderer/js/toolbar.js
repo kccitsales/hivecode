@@ -36,6 +36,12 @@ class Toolbar {
       }
     });
 
+    const broadcastBtn = this._createButton('Broadcast', () => this._showBroadcastBar());
+    broadcastBtn.title = '브로드캐스트 (Ctrl+Shift+B)';
+
+    const chainBtn = this._createButton('Chain', () => this._showChainModal());
+    chainBtn.title = '명령 체이닝 (Ctrl+Shift+C)';
+
     // Spacer
     const spacer = document.createElement('div');
     spacer.style.flex = '1';
@@ -81,7 +87,7 @@ class Toolbar {
 
     winControls.append(minBtn, maxBtn, closeBtn);
 
-    this.element.append(icon, title, version, addBtn, projectBtn, splitHBtn, splitVBtn, spacer, this.accountBtn, this.notifyBtn, helpBtn, winControls);
+    this.element.append(icon, title, version, addBtn, projectBtn, splitHBtn, splitVBtn, broadcastBtn, chainBtn, spacer, this.accountBtn, this.notifyBtn, helpBtn, winControls);
 
     // Load saved active account
     this._loadActiveAccount();
@@ -487,6 +493,254 @@ class Toolbar {
     this._updateNotifyBtn(settings.enabled);
   }
 
+  _showBroadcastBar() {
+    // Toggle: remove if already visible
+    const existing = document.getElementById('broadcast-bar');
+    if (existing) { existing.remove(); return; }
+
+    const bar = document.createElement('div');
+    bar.id = 'broadcast-bar';
+    bar.className = 'broadcast-bar';
+
+    // Terminal checkboxes
+    const checkboxArea = document.createElement('div');
+    checkboxArea.className = 'broadcast-targets';
+
+    // Select all checkbox
+    const allLabel = document.createElement('label');
+    allLabel.className = 'broadcast-target-label';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox';
+    allCb.checked = true;
+    allCb.className = 'broadcast-cb';
+    allLabel.appendChild(allCb);
+    allLabel.appendChild(document.createTextNode(' 전체'));
+    checkboxArea.appendChild(allLabel);
+
+    const termCbs = [];
+    for (const [id, termInfo] of this.paneManager.terminals) {
+      const label = document.createElement('label');
+      label.className = 'broadcast-target-label';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = true;
+      cb.dataset.termId = id;
+      cb.className = 'broadcast-cb';
+      label.appendChild(cb);
+      label.appendChild(document.createTextNode(' ' + termInfo.name));
+      checkboxArea.appendChild(label);
+      termCbs.push(cb);
+    }
+
+    // Select all toggle
+    allCb.addEventListener('change', () => {
+      termCbs.forEach(cb => { cb.checked = allCb.checked; });
+    });
+    termCbs.forEach(cb => {
+      cb.addEventListener('change', () => {
+        allCb.checked = termCbs.every(c => c.checked);
+      });
+    });
+
+    // Command input
+    const inputWrap = document.createElement('div');
+    inputWrap.className = 'broadcast-input-wrap';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'broadcast-input';
+    input.placeholder = '명령어 입력 후 Enter...';
+
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'broadcast-send-btn';
+    sendBtn.textContent = '전송';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'broadcast-close-btn';
+    closeBtn.textContent = '\u00d7';
+    closeBtn.addEventListener('click', () => bar.remove());
+
+    const doSend = () => {
+      const cmd = input.value;
+      if (!cmd) return;
+      const targets = termCbs.filter(cb => cb.checked).map(cb => parseInt(cb.dataset.termId));
+      targets.forEach(tid => {
+        window.terminalAPI.write(tid, cmd + '\r');
+      });
+      input.value = '';
+      input.focus();
+    };
+
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); doSend(); }
+      if (e.key === 'Escape') { bar.remove(); }
+    });
+    sendBtn.addEventListener('click', doSend);
+
+    inputWrap.append(input, sendBtn, closeBtn);
+    bar.append(checkboxArea, inputWrap);
+    document.body.appendChild(bar);
+    input.focus();
+  }
+
+  _showChainModal() {
+    const existing = document.getElementById('chain-modal');
+    if (existing) { existing.remove(); return; }
+
+    const overlay = document.createElement('div');
+    overlay.id = 'chain-modal';
+    overlay.className = 'help-overlay';
+
+    const modal = document.createElement('div');
+    modal.className = 'help-modal chain-modal';
+
+    // Header
+    const header = document.createElement('div');
+    header.className = 'help-header';
+    header.innerHTML = '<span class="help-title">명령 체이닝</span><button class="help-close-btn">\u00d7</button>';
+
+    // Body
+    const body = document.createElement('div');
+    body.className = 'help-body';
+
+    // Form
+    const form = document.createElement('div');
+    form.className = 'chain-form';
+
+    const terminals = Array.from(this.paneManager.terminals.entries());
+
+    // Source select
+    const sourceLabel = document.createElement('label');
+    sourceLabel.className = 'chain-label';
+    sourceLabel.textContent = '소스 패인 (완료 감지)';
+    const sourceSelect = document.createElement('select');
+    sourceSelect.className = 'chain-select';
+    terminals.forEach(([id, info]) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = info.name;
+      sourceSelect.appendChild(opt);
+    });
+
+    // Target select
+    const targetLabel = document.createElement('label');
+    targetLabel.className = 'chain-label';
+    targetLabel.textContent = '대상 패인 (명령 실행)';
+    const targetSelect = document.createElement('select');
+    targetSelect.className = 'chain-select';
+    terminals.forEach(([id, info]) => {
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = info.name;
+      targetSelect.appendChild(opt);
+    });
+    // Default to second terminal if available
+    if (terminals.length > 1) targetSelect.value = terminals[1][0];
+
+    // Command input
+    const cmdLabel = document.createElement('label');
+    cmdLabel.className = 'chain-label';
+    cmdLabel.textContent = '실행할 명령어';
+    const cmdInput = document.createElement('input');
+    cmdInput.type = 'text';
+    cmdInput.className = 'chain-cmd-input';
+    cmdInput.placeholder = '예: npm test';
+
+    // Once checkbox
+    const onceLabel = document.createElement('label');
+    onceLabel.className = 'chain-once-label';
+    const onceCb = document.createElement('input');
+    onceCb.type = 'checkbox';
+    onceCb.checked = true;
+    onceLabel.appendChild(onceCb);
+    onceLabel.appendChild(document.createTextNode(' 1회성 (실행 후 자동 삭제)'));
+
+    // Add button
+    const addBtn = document.createElement('button');
+    addBtn.className = 'chain-add-btn';
+    addBtn.textContent = '+ 규칙 추가';
+
+    form.append(sourceLabel, sourceSelect, targetLabel, targetSelect, cmdLabel, cmdInput, onceLabel, addBtn);
+
+    // Rule list
+    const listContainer = document.createElement('div');
+    listContainer.className = 'chain-list';
+
+    const renderList = () => {
+      listContainer.innerHTML = '';
+      if (this.paneManager.chainRules.length === 0) {
+        const empty = document.createElement('div');
+        empty.className = 'chain-empty';
+        empty.textContent = '설정된 체인 규칙이 없습니다.';
+        listContainer.appendChild(empty);
+        return;
+      }
+      this.paneManager.chainRules.forEach((rule) => {
+        const item = document.createElement('div');
+        item.className = 'chain-rule-item';
+
+        const srcInfo = this.paneManager.terminals.get(rule.sourceId);
+        const tgtInfo = this.paneManager.terminals.get(rule.targetId);
+        const srcName = srcInfo ? srcInfo.name : `#${rule.sourceId}`;
+        const tgtName = tgtInfo ? tgtInfo.name : `#${rule.targetId}`;
+
+        const text = document.createElement('span');
+        text.className = 'chain-rule-text';
+        text.textContent = `${srcName} \u2192 ${tgtName}: ${rule.command}`;
+
+        const badge = document.createElement('span');
+        badge.className = 'chain-rule-badge';
+        badge.textContent = rule.once ? '1회' : '반복';
+
+        const delBtn = document.createElement('button');
+        delBtn.className = 'chain-rule-del';
+        delBtn.textContent = '\u00d7';
+        delBtn.addEventListener('click', () => {
+          this.paneManager.chainRules = this.paneManager.chainRules.filter(r => r.id !== rule.id);
+          renderList();
+        });
+
+        item.append(text, badge, delBtn);
+        listContainer.appendChild(item);
+      });
+    };
+
+    addBtn.addEventListener('click', () => {
+      const cmd = cmdInput.value.trim();
+      if (!cmd) return;
+      const sourceId = parseInt(sourceSelect.value);
+      const targetId = parseInt(targetSelect.value);
+      if (sourceId === targetId) return;
+
+      this.paneManager.chainRules.push({
+        id: 'chain_' + Date.now(),
+        sourceId,
+        targetId,
+        command: cmd,
+        once: onceCb.checked
+      });
+      cmdInput.value = '';
+      renderList();
+    });
+
+    renderList();
+
+    body.append(form, listContainer);
+    modal.append(header, body);
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    // Close handlers
+    const close = () => overlay.remove();
+    header.querySelector('.help-close-btn').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    document.addEventListener('keydown', function onEsc(e) {
+      if (e.key === 'Escape') { close(); document.removeEventListener('keydown', onEsc); }
+    });
+
+    cmdInput.focus();
+  }
+
   _showHelp() {
     // Remove existing modal if any
     const existing = document.getElementById('help-modal');
@@ -546,6 +800,8 @@ class Toolbar {
           <table>
             <tr><td class="help-key">Ctrl+C</td><td>선택된 텍스트 복사 (선택 없으면 인터럽트)</td></tr>
             <tr><td class="help-key">Ctrl+V</td><td>클립보드에서 붙여넣기</td></tr>
+            <tr><td class="help-key">Ctrl+Shift+B</td><td>브로드캐스트 — 선택한 터미널에 동시 명령 전송</td></tr>
+            <tr><td class="help-key">Ctrl+Shift+C</td><td>명령 체이닝 — 패인 완료 시 다른 패인에서 자동 실행</td></tr>
           </table>
         </div>
         <div class="help-section">

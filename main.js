@@ -126,8 +126,14 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
 
       // OSC 7 = prompt appeared = previous command completed
       const cmdStart = commandStartTimes.get(id);
-      if (cmdStart && notifySettings.enabled) {
-        sendNotification('명령 완료', cmdStart);
+      if (cmdStart) {
+        if (notifySettings.enabled) {
+          sendNotification('명령 완료', cmdStart);
+        }
+        // Notify renderer for chain orchestration
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('notify:command-complete', { id });
+        }
         commandStartTimes.delete(id);
       }
     } else if (!promptSeen.get(id) && commandStartTimes.get(id) && notifySettings.enabled) {
@@ -141,6 +147,10 @@ ipcMain.on('terminal:create', (event, { id, cwd, autoRun, apiKey }) => {
         const elapsed = (Date.now() - cmdStart) / 1000;
         if (notifySettings.enabled && elapsed >= notifySettings.thresholdSeconds) {
           sendNotification('응답 완료', cmdStart);
+        }
+        // Notify renderer for chain orchestration
+        if (!event.sender.isDestroyed()) {
+          event.sender.send('notify:command-complete', { id });
         }
         // 2s idle = response done; always clear to prevent stale false positives
         commandStartTimes.delete(id);
