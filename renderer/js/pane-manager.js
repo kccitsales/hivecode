@@ -40,6 +40,11 @@ class PaneManager {
           xterm.clearSelection();
           return false; // prevent sending to shell
         }
+        if (e.code === 'Enter') {
+          e.preventDefault();
+          window.terminalAPI.write(id, '\n');
+          return false;
+        }
         if (e.code === 'KeyV') {
           e.preventDefault();
           if (window.terminalAPI.clipboardHasImage()) {

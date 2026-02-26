@@ -1,6 +1,6 @@
 {
   "name": "hivecode",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "description": "Split-pane PowerShell terminal multiplexer with Claude Code",
   "main": "main.js",
   "author": "HiveCode",
@@ -9,7 +9,7 @@
     "rebuild": "electron-rebuild",
     "dist": "node scripts/build.js",
     "dist:nobump": "electron-builder --win",
-    "dist:portable": "electron-builder --win portable"
+    "dist:portable": "electron-builder --win zip"
   },
   "build": {
     "appId": "com.hivecode.app",
